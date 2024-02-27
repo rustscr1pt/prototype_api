@@ -1,7 +1,13 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 
 #[derive(Debug, Serialize)]
-pub struct SqlStream {
+pub struct CatalogMainRequest { // An answer for all positions request
+    pub total_items : u16,
+    pub list_of_groups : Vec<String>,
+    pub all_items : Vec<SqlStream>
+}
+#[derive(Debug, Serialize)]
+pub struct SqlStream { // A data for one object
     pub id : u16,
     pub name : String,
     pub brand : String,

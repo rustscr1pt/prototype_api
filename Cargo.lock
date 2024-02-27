@@ -1451,6 +1451,7 @@ name = "prototype_web_api"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "itertools",
  "mysql",
  "serde",
  "tokio",
