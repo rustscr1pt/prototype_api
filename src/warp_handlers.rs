@@ -4,10 +4,11 @@ use mysql::{PooledConn};
 use mysql::prelude::Queryable;
 use rand::Rng;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use warp::{Rejection, Reply};
 use warp::http::Method;
 use warp::reply::json;
-use crate::data_models::{CatalogMainRequest, IndexBasicRequest, Message, SqlStream, ToCompare};
+use crate::data_models::{CatalogMainRequest, CategoryMainRequest, IndexBasicRequest, Message, SqlStream, ToCompare};
 
 type WebResult<T> = Result<T, Rejection>;
 
@@ -98,9 +99,49 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
             for _ in 0..6 {
                 random_vector.push(vector.clone().get(rand::thread_rng().gen_range(0..vector.len())).unwrap().clone());
             }
+
+            // while random_vector.len() < 7 {
+            //     let generated_value = vector.clone().get(rand::thread_rng().gen_range(0..vector.len())).unwrap().clone();
+            //     for check in random_vector.clone() {
+            //         println!("Cycle");
+            //         if check.name == generated_value.name {
+            //             break
+            //         }
+            //         random_vector.push(generated_value.clone());
+            //     }
+            // }
+
+
+            let filtered_categories = vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>();
+            let mut active_threads_holder : Vec<JoinHandle<()>> = Vec::with_capacity(filtered_categories.len() + 1);
+            let release_structs : Arc<Mutex<Vec<CategoryMainRequest>>> = Arc::new(Mutex::new(Vec::with_capacity(filtered_categories.len() + 1)));
+            let arc_vector = Arc::new(vector);
+            for element in filtered_categories {
+
+                let sqlstream_cloned = Arc::clone(&arc_vector);
+                let release_cloned = Arc::clone(&release_structs);
+
+                let active_counter = tokio::spawn(async move {
+                    let mut counter : u16 = 0;
+                    let mut locked_release = release_cloned.lock().await;
+
+                    for category in sqlstream_cloned.iter() {
+                        if element == category.group_type {
+                            counter += category.available_quantity as u16
+                        }
+                    }
+                    locked_release.push(CategoryMainRequest {
+                        category: element,
+                        amount:  counter});
+                    drop(locked_release);
+                });
+                active_threads_holder.push(active_counter)
+            }
+            futures::future::join_all(active_threads_holder).await;
+            let unlocked_final = release_structs.lock().await;
             Ok(warp::reply::with_header(json(&IndexBasicRequest {
                 random_positions: random_vector,
-                available_categories: vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>(),
+                available_categories: unlocked_final.clone(),
             }), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
