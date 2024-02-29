@@ -9,17 +9,22 @@ mod mysql_model;
 mod warp_handlers;
 mod warp_injectors;
 mod data_models;
+mod cors_config;
 
 #[tokio::main]
 async fn main() {
     let connection : Arc<Mutex<PooledConn>> = Arc::new(Mutex::new(establish_connection())); // Shared Pool for working with MySQL at different threads
 
-    let refuse_connection = warp::any().and(warp::method()).and_then(refuse_connection); // Refuse the connection if it doesn't match any filters
+    let refuse_connection = warp::any() // Refuse the connection if it doesn't match any filters
+        .and(warp::method())
+        .and_then(refuse_connection)
+        .with(cors_config::get());
 
     let get_all_positions_catalog = warp::path!("catalog" / "all") // Get all available positions + total amount of items + available categories
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
-        .and_then(warp_handlers::get_all_items_catalog);
+        .and_then(warp_handlers::get_all_items_catalog)
+        .with(cors_config::get());
 
     let concrete_positions_catalog = warp::path!("catalog" / String) // Get a list of items for the desired category
         .map(|value : String| {
@@ -27,7 +32,8 @@ async fn main() {
         })
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
-        .and_then(get_concrete_items_catalog);
+        .and_then(get_concrete_items_catalog)
+        .with(cors_config::get());
 
     println!("Server is initialized.\nDeployment address : http://localhost:8000/");
 

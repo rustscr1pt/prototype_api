@@ -12,9 +12,7 @@ type WebResult<T> = Result<T, Rejection>;
 
 
 pub async fn refuse_connection(_ : Method) -> WebResult<impl Reply> { // Refuse connection if it doesn't match any filters
-    return Ok(json(&Message {
-        reply: "This request is forbidden, connection is being dropped".to_string(),
-    }))
+    Ok(warp::reply::with_header(json(&Message { reply: "This request is forbidden, connection is dropped".to_string()}), "Access-Control-Allow-Origin", "*"))
 }
 
 pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
@@ -32,21 +30,21 @@ pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<i
         }
     }, ) {
         Ok(vector) => {
-            Ok(json(&CatalogMainRequest {
+            Ok(warp::reply::with_header(json(&CatalogMainRequest {
                 total_items: vector.len() as u16,
                 list_of_groups: vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>(),
                 all_items: vector,
-            }))
+            }), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
-            Ok(json(&Message {reply : e.to_string()}))
+            Ok(warp::reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
         }
     }
 }
 
 pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
     let mut unlocked = pool.lock().await;
-    match unlocked.query_map("SELECT group_type FROM items_data", |(group_type)| {
+    match unlocked.query_map("SELECT group_type FROM items_data", |group_type| {
         ToCompare{ compared: group_type }
     },
     ) {
@@ -67,15 +65,15 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
                                            }
                                        }
                     ) {
-                        Ok(result) => {return Ok(json(&result))}
-                        Err(e) => {return Ok(json(&Message{reply : e.to_string()}))}
+                        Ok(result) => {return Ok(warp::reply::with_header(json(&result), "Access-Control-Allow-Origin", "*"))}
+                        Err(e) => {return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))}
                     }
                 }
             }
-            return Ok(json(&Message{reply : format!("{} - No values found for your request", value)}))
+            return Ok(warp::reply::with_header(json(&Message{reply : format!("{} - No values found for your request", value)}), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
-            return Ok(json(&Message{reply : e.to_string()}))
+            return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
         }
     }
 }
