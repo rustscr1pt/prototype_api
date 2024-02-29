@@ -17,6 +17,10 @@ pub async fn refuse_connection(_ : Method) -> WebResult<impl Reply> { // Refuse 
     Ok(warp::reply::with_header(json(&Message { reply: "This request is forbidden, connection is dropped".to_string()}), "Access-Control-Allow-Origin", "*"))
 }
 
+pub fn remove_repeating_elements_to_string(vector : &Vec<SqlStream>) -> Vec<String> {
+    return vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>()
+}
+
 pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
     let mut unlocked = pool.lock().await;
     match unlocked.query_map("SELECT * FROM `items_data`", |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
@@ -34,7 +38,7 @@ pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<i
         Ok(vector) => {
             Ok(warp::reply::with_header(json(&CatalogMainRequest {
                 total_items: vector.len() as u16,
-                list_of_groups: vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>(),
+                list_of_groups: remove_repeating_elements_to_string(&vector),
                 all_items: vector,
             }), "Access-Control-Allow-Origin", "*"))
         }
@@ -112,7 +116,7 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
             // }
 
 
-            let filtered_categories = vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>();
+            let filtered_categories = remove_repeating_elements_to_string(&vector);
             let mut active_threads_holder : Vec<JoinHandle<()>> = Vec::with_capacity(filtered_categories.len() + 1);
             let release_structs : Arc<Mutex<Vec<CategoryMainRequest>>> = Arc::new(Mutex::new(Vec::with_capacity(filtered_categories.len() + 1)));
             let arc_vector = Arc::new(vector);
