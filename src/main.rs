@@ -1,4 +1,5 @@
-use std::sync::{Arc};
+use std::sync::Arc;
+use futures::SinkExt;
 use mysql::PooledConn;
 use tokio::sync::Mutex;
 use warp::Filter;
@@ -20,6 +21,12 @@ async fn main() {
         .and_then(refuse_connection)
         .with(cors_config::get());
 
+    let main_page = warp::path!("main")
+        .and(warp::get())
+        .and(warp_injectors::with_pool(Arc::clone(&connection)))
+        .and_then(warp_handlers::main_screen_getter)
+        .with(cors_config::get());
+
     let get_all_positions_catalog = warp::path!("catalog" / "all") // Get all available positions + total amount of items + available categories
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
@@ -37,5 +44,5 @@ async fn main() {
 
     println!("Server is initialized.\nDeployment address : http://localhost:8000/");
 
-    warp::serve(get_all_positions_catalog.or(concrete_positions_catalog).or(refuse_connection)).run(([0, 0, 0, 0], 8000)).await;
+    warp::serve(main_page.or(get_all_positions_catalog).or(concrete_positions_catalog).or(refuse_connection)).run(([0, 0, 0, 0], 8000)).await;
 }

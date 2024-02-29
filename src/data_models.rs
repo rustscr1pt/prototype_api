@@ -7,6 +7,11 @@ pub struct CatalogMainRequest { // An answer for all positions request
     pub all_items : Vec<SqlStream>
 }
 #[derive(Debug, Serialize)]
+pub struct IndexBasicRequest { // An answer for a basic request from index.html
+    pub random_positions : Vec<SqlStream>,
+    pub available_categories : Vec<String>,
+}
+#[derive(Debug, Serialize, Clone)]
 pub struct SqlStream { // A data for one object
     pub id : u16,
     pub name : String,
@@ -24,4 +29,9 @@ pub struct ToCompare {
 #[derive(Debug, Serialize)]
 pub struct Message {
     pub reply : String
+}
+#[derive(Debug, Serialize)]
+pub struct CategoryMainRequest {
+    pub category : String,
+    pub amount : u16
 }
