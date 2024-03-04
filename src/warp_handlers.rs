@@ -104,18 +104,6 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
                 random_vector.push(vector.clone().get(rand::thread_rng().gen_range(0..vector.len())).unwrap().clone());
             }
 
-            // while random_vector.len() < 7 {
-            //     let generated_value = vector.clone().get(rand::thread_rng().gen_range(0..vector.len())).unwrap().clone();
-            //     for check in random_vector.clone() {
-            //         println!("Cycle");
-            //         if check.name == generated_value.name {
-            //             break
-            //         }
-            //         random_vector.push(generated_value.clone());
-            //     }
-            // }
-
-
             let filtered_categories = remove_repeating_elements_to_string(&vector);
             let mut active_threads_holder : Vec<JoinHandle<()>> = Vec::with_capacity(filtered_categories.len() + 1);
             let release_structs : Arc<Mutex<Vec<CategoryMainRequest>>> = Arc::new(Mutex::new(Vec::with_capacity(filtered_categories.len() + 1)));
