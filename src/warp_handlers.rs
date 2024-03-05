@@ -50,36 +50,57 @@ pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<i
 
 pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
     let mut unlocked = pool.lock().await;
-    match unlocked.query_map("SELECT group_type FROM items_data", |group_type| {
-        ToCompare{ compared: group_type }
-    },
-    ) {
-        Ok(vec) => {
-            for elements in vec {
-                if value == elements.compared {
-                    match unlocked.query_map(format!(r#"SELECT * FROM `items_data` WHERE group_type = "{}""#, value),
-                                       |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
-                                           SqlStream {
-                                               id,
-                                               name,
-                                               brand,
-                                               description,
-                                               group_type,
-                                               price,
-                                               image_path,
-                                               available_quantity
-                                           }
-                                       }
-                    ) {
-                        Ok(result) => {return Ok(warp::reply::with_header(json(&result), "Access-Control-Allow-Origin", "*"))}
-                        Err(e) => {return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))}
+    if value == "all" {
+        match unlocked.query_map("SELECT * FROM items_data", |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
+            SqlStream {
+                id,
+                name,
+                brand,
+                description,
+                group_type,
+                price,
+                image_path,
+                available_quantity
+            }
+        }, ) {
+            Ok(vec) => {
+                Ok(warp::reply::with_header(json(&vec), "Access-Control-Allow-Origin", "*"))
+            }
+            Err(e) => {Ok(warp::reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))}
+        }
+    }
+    else {
+        match unlocked.query_map("SELECT group_type FROM items_data", |group_type| {
+            ToCompare{ compared: group_type }
+        },
+        ) {
+            Ok(vec) => {
+                for elements in vec {
+                    if value == elements.compared {
+                        match unlocked.query_map(format!(r#"SELECT * FROM `items_data` WHERE group_type = "{}""#, value),
+                                                 |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
+                                                     SqlStream {
+                                                         id,
+                                                         name,
+                                                         brand,
+                                                         description,
+                                                         group_type,
+                                                         price,
+                                                         image_path,
+                                                         available_quantity
+                                                     }
+                                                 }
+                        ) {
+                            Ok(result) => {return Ok(warp::reply::with_header(json(&result), "Access-Control-Allow-Origin", "*"))}
+                            Err(e) => {return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))}
+                        }
                     }
                 }
+                return Ok(warp::reply::with_header(json(&Message{reply : format!("{} - No values found for your request", value)}), "Access-Control-Allow-Origin", "*"))
             }
-            return Ok(warp::reply::with_header(json(&Message{reply : format!("{} - No values found for your request", value)}), "Access-Control-Allow-Origin", "*"))
-        }
-        Err(e) => {
-            return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
+            Err(e) => {
+                return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
+            }
         }
     }
 }

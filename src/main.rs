@@ -26,7 +26,7 @@ async fn main() {
         .and_then(warp_handlers::main_screen_getter)
         .with(cors_config::get());
 
-    let get_all_positions_catalog = warp::path!("catalog" / "all") // Get all available positions + total amount of items + available categories
+    let get_all_main_landing = warp::path!("catalog" / "main_landing")
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
         .and_then(warp_handlers::get_all_items_catalog)
@@ -43,5 +43,7 @@ async fn main() {
 
     println!("Server is initialized.\nDeployment address : http://localhost:8000/");
 
-    warp::serve(main_page.or(get_all_positions_catalog).or(concrete_positions_catalog).or(refuse_connection)).run(([0, 0, 0, 0], 8000)).await;
+    let routes = main_page.or(get_all_main_landing).or(concrete_positions_catalog).or(refuse_connection);
+
+    warp::serve(routes).run(([0, 0, 0, 0], 8000)).await;
 }
