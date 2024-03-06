@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use itertools::Itertools;
 use mysql::{PooledConn};
 use mysql::prelude::Queryable;
 use rand::Rng;
@@ -9,6 +8,7 @@ use warp::{Rejection, Reply};
 use warp::http::Method;
 use warp::reply::json;
 use crate::data_models::{CatalogMainRequest, CategoryMainRequest, IndexBasicRequest, Message, SqlStream, ToCompare};
+use crate::mysql_model::{all_from_table_where_group_type, remove_repeating_elements_to_string, select_all_from_table, select_group_type_from_table};
 
 type WebResult<T> = Result<T, Rejection>;
 
@@ -17,24 +17,9 @@ pub async fn refuse_connection(_ : Method) -> WebResult<impl Reply> { // Refuse 
     Ok(warp::reply::with_header(json(&Message { reply: "This request is forbidden, connection is dropped".to_string()}), "Access-Control-Allow-Origin", "*"))
 }
 
-pub fn remove_repeating_elements_to_string(vector : &Vec<SqlStream>) -> Vec<String> {
-    return vector.iter().map(|value| value.group_type.to_string()).collect::<Vec<String>>().into_iter().unique().collect::<Vec<String>>()
-}
-
-pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> { // Get all items from the tables catalog.
     let mut unlocked = pool.lock().await;
-    match unlocked.query_map("SELECT * FROM `items_data`", |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
-        SqlStream {
-            id,
-            name,
-            brand,
-            description,
-            group_type,
-            price,
-            image_path,
-            available_quantity
-        }
-    }, ) {
+    match select_all_from_table(&mut unlocked) {
         Ok(vector) => {
             Ok(warp::reply::with_header(json(&CatalogMainRequest {
                 total_items: vector.len() as u16,
@@ -48,21 +33,10 @@ pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<i
     }
 }
 
-pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> { // Value is passed in, and filtered catalog is returned
     let mut unlocked = pool.lock().await;
     if value == "all" {
-        match unlocked.query_map("SELECT * FROM items_data", |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
-            SqlStream {
-                id,
-                name,
-                brand,
-                description,
-                group_type,
-                price,
-                image_path,
-                available_quantity
-            }
-        }, ) {
+        match select_all_from_table(&mut unlocked) {
             Ok(vec) => {
                 Ok(warp::reply::with_header(json(&vec), "Access-Control-Allow-Origin", "*"))
             }
@@ -70,27 +44,11 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
         }
     }
     else {
-        match unlocked.query_map("SELECT group_type FROM items_data", |group_type| {
-            ToCompare{ compared: group_type }
-        },
-        ) {
+        match select_group_type_from_table(&mut unlocked) {
             Ok(vec) => {
                 for elements in vec {
                     if value == elements.compared {
-                        match unlocked.query_map(format!(r#"SELECT * FROM `items_data` WHERE group_type = "{}""#, value),
-                                                 |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
-                                                     SqlStream {
-                                                         id,
-                                                         name,
-                                                         brand,
-                                                         description,
-                                                         group_type,
-                                                         price,
-                                                         image_path,
-                                                         available_quantity
-                                                     }
-                                                 }
-                        ) {
+                        match all_from_table_where_group_type(&mut unlocked, value) {
                             Ok(result) => {return Ok(warp::reply::with_header(json(&result), "Access-Control-Allow-Origin", "*"))}
                             Err(e) => {return Ok(warp::reply::with_header(json(&Message{reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))}
                         }
@@ -107,18 +65,7 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
 
 pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
     let mut unlocked = pool.lock().await;
-    match unlocked.query_map("SELECT * FROM `items_data`", |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
-        SqlStream {
-            id,
-            name,
-            brand,
-            description,
-            group_type,
-            price,
-            image_path,
-            available_quantity
-        }
-    }, ) {
+    match select_all_from_table(&mut unlocked) {
         Ok(vector) => {
             let mut random_vector : Vec<SqlStream> = Vec::with_capacity(6);
             for _ in 0..6 {
