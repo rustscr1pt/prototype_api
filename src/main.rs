@@ -15,18 +15,13 @@ mod cors_config;
 async fn main() {
     let connection : Arc<Mutex<PooledConn>> = Arc::new(Mutex::new(establish_connection())); // Shared Pool for working with MySQL at different threads
 
-    let refuse_connection = warp::any() // Refuse the connection if it doesn't match any filters
-        .and(warp::method())
-        .and_then(refuse_connection)
-        .with(cors_config::get());
-
     let main_page = warp::path!("main")
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
         .and_then(warp_handlers::main_screen_getter)
         .with(cors_config::get());
 
-    let get_all_main_landing = warp::path!("catalog" / "main_landing")
+    let get_all_main_landing = warp::path!("catalog" / "main_landing") // A first request when catalog.html is opened.
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
         .and_then(warp_handlers::get_all_items_catalog)
@@ -39,6 +34,11 @@ async fn main() {
         .and(warp::get())
         .and(warp_injectors::with_pool(Arc::clone(&connection)))
         .and_then(get_concrete_items_catalog)
+        .with(cors_config::get());
+
+    let refuse_connection = warp::any() // Refuse the connection if it doesn't match any filters
+        .and(warp::method())
+        .and_then(refuse_connection)
         .with(cors_config::get());
 
     println!("Server is initialized.\nDeployment address : http://localhost:8000/");

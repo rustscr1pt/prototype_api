@@ -36,8 +36,7 @@ pub fn select_all_from_table(unlocked : &mut MutexGuard<PooledConn>) -> mysql::R
 pub fn select_group_type_from_table(unlocked : &mut MutexGuard<PooledConn>) -> mysql::Result<Vec<ToCompare>> {
     return unlocked.query_map("SELECT group_type FROM items_data", |group_type| {
         ToCompare{ compared: group_type }
-    },
-    )
+    })
 }
 
 pub fn all_from_table_where_group_type(unlocked : &mut MutexGuard<PooledConn>, where_expression : String) -> mysql::Result<Vec<SqlStream>> {
@@ -53,6 +52,5 @@ pub fn all_from_table_where_group_type(unlocked : &mut MutexGuard<PooledConn>, w
                                       image_path,
                                       available_quantity
                                   }
-                              }
-    )
+                              })
 }

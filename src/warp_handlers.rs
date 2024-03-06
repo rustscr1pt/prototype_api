@@ -1,13 +1,12 @@
 use std::sync::Arc;
 use mysql::{PooledConn};
-use mysql::prelude::Queryable;
 use rand::Rng;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use warp::{Rejection, Reply};
 use warp::http::Method;
 use warp::reply::json;
-use crate::data_models::{CatalogMainRequest, CategoryMainRequest, IndexBasicRequest, Message, SqlStream, ToCompare};
+use crate::data_models::{CatalogMainRequest, CategoryMainRequest, IndexBasicRequest, Message, SqlStream};
 use crate::mysql_model::{all_from_table_where_group_type, remove_repeating_elements_to_string, select_all_from_table, select_group_type_from_table};
 
 type WebResult<T> = Result<T, Rejection>;
@@ -63,7 +62,24 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
     }
 }
 
-pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+pub fn items_async_counter(element : String, sqlstream_cloned : Arc<Vec<SqlStream>>, release_cloned : Arc<Mutex<Vec<CategoryMainRequest>>>) -> JoinHandle<()> { // Count amount for every element in async mode. Element is passed outside from filtered function.
+    return tokio::spawn(async move {
+        let mut counter : u16 = 0;
+        for categories in sqlstream_cloned.iter() {
+            if element == categories.group_type {
+                counter += categories.available_quantity as u16
+            }
+        }
+        let mut locked_release = release_cloned.lock().await;
+        locked_release.push(CategoryMainRequest {
+            category: element,
+            amount: counter,
+        });
+        drop(locked_release);
+    })
+}
+
+pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> { // Two stages. 1) We get 6 random elements to display. 2) We get available categories and count the amount of items for each of it.
     let mut unlocked = pool.lock().await;
     match select_all_from_table(&mut unlocked) {
         Ok(vector) => {
@@ -76,28 +92,11 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
             let mut active_threads_holder : Vec<JoinHandle<()>> = Vec::with_capacity(filtered_categories.len() + 1);
             let release_structs : Arc<Mutex<Vec<CategoryMainRequest>>> = Arc::new(Mutex::new(Vec::with_capacity(filtered_categories.len() + 1)));
             let arc_vector = Arc::new(vector);
-            for element in filtered_categories {
-
-                let sqlstream_cloned = Arc::clone(&arc_vector);
-                let release_cloned = Arc::clone(&release_structs);
-
-                let active_counter = tokio::spawn(async move {
-                    let mut counter : u16 = 0;
-                    let mut locked_release = release_cloned.lock().await;
-
-                    for category in sqlstream_cloned.iter() {
-                        if element == category.group_type {
-                            counter += category.available_quantity as u16
-                        }
-                    }
-                    locked_release.push(CategoryMainRequest {
-                        category: element,
-                        amount:  counter});
-                    drop(locked_release);
-                });
-                active_threads_holder.push(active_counter)
+            for element in filtered_categories { // We get a vec of cleaned and not repeating elements and then count amount of items inside it.
+                let active_count_thread = items_async_counter(element, Arc::clone(&arc_vector), Arc::clone(&release_structs)); // We pass in an element and then count amount of items inside.
+                active_threads_holder.push(active_count_thread); // We push a thread inside the await pool.
             }
-            futures::future::join_all(active_threads_holder).await;
+            futures::future::join_all(active_threads_holder).await; // We wait for every thread in a pool to finish its job.
             let unlocked_final = release_structs.lock().await;
             Ok(warp::reply::with_header(json(&IndexBasicRequest {
                 random_positions: random_vector,
