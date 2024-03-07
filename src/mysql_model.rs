@@ -9,7 +9,7 @@ use crate::data_models::{SqlStream, ToCompare};
 /// r#"C:\Users\User\Desktop\mysql.txt"#
 
 pub fn establish_connection() -> PooledConn {
-    let pool = Pool::new(fs::read_to_string(r#"/Users/egorivanov/Desktop/mysql.txt"#).unwrap().trim()).expect("Couldn't connect to a base");
+    let pool = Pool::new(fs::read_to_string(r#"C:\Users\User\Desktop\mysql.txt"#).unwrap().trim()).expect("Couldn't connect to a base");
     println!("Connection with MySQL pool is established!");
     return pool.get_conn().unwrap();
 }
@@ -53,4 +53,21 @@ pub fn all_from_table_where_group_type(unlocked : &mut MutexGuard<PooledConn>, w
                                       available_quantity
                                   }
                               })
+}
+
+pub fn select_from_table_by_id(unlocked : &mut MutexGuard<PooledConn>, id : u16) -> mysql::Result<Vec<SqlStream>> {
+    return unlocked.query_map(format!("SELECT * FROM `items_data` WHERE id = {}", id),
+                              |(id, name, brand, description, group_type, price, image_path, available_quantity)| {
+                                  SqlStream {
+                                      id,
+                                      name,
+                                      brand,
+                                      description,
+                                      group_type,
+                                      price,
+                                      image_path,
+                                      available_quantity
+                                  }
+                              }
+    )
 }

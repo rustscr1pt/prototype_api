@@ -1,9 +1,10 @@
 use std::sync::Arc;
+use futures::{SinkExt, TryFutureExt};
 use mysql::PooledConn;
 use tokio::sync::Mutex;
 use warp::Filter;
 use crate::mysql_model::establish_connection;
-use crate::warp_handlers::{get_concrete_items_catalog, refuse_connection};
+use crate::warp_handlers::{get_concrete_items_catalog, get_item_by_id, refuse_connection};
 
 mod mysql_model;
 mod warp_handlers;
@@ -36,6 +37,15 @@ async fn main() {
         .and_then(get_concrete_items_catalog)
         .with(cors_config::get());
 
+    let display_full_screen_item = warp::path!("concrete" / String)
+        .map(|id : String| {
+            id.clone()
+        })
+        .and(warp::get())
+        .and(warp_injectors::with_pool(Arc::clone(&connection)))
+        .and_then(get_item_by_id)
+        .with(cors_config::get());
+
     let refuse_connection = warp::any() // Refuse the connection if it doesn't match any filters
         .and(warp::method())
         .and_then(refuse_connection)
@@ -43,7 +53,7 @@ async fn main() {
 
     println!("Server is initialized.\nDeployment address : http://localhost:8000/");
 
-    let routes = main_page.or(get_all_main_landing).or(concrete_positions_catalog).or(refuse_connection);
+    let routes = main_page.or(get_all_main_landing).or(concrete_positions_catalog).or(display_full_screen_item).or(refuse_connection);
 
     warp::serve(routes).run(([0, 0, 0, 0], 8000)).await;
 }

@@ -1,13 +1,14 @@
+use std::num::ParseIntError;
 use std::sync::Arc;
 use mysql::{PooledConn};
 use rand::Rng;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use warp::{Rejection, Reply};
+use warp::{Rejection, Reply, reply};
 use warp::http::Method;
 use warp::reply::json;
 use crate::data_models::{CatalogMainRequest, CategoryMainRequest, IndexBasicRequest, Message, SqlStream};
-use crate::mysql_model::{all_from_table_where_group_type, remove_repeating_elements_to_string, select_all_from_table, select_group_type_from_table};
+use crate::mysql_model::{all_from_table_where_group_type, remove_repeating_elements_to_string, select_all_from_table, select_from_table_by_id, select_group_type_from_table};
 
 type WebResult<T> = Result<T, Rejection>;
 
@@ -98,13 +99,37 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
             }
             futures::future::join_all(active_threads_holder).await; // We wait for every thread in a pool to finish its job.
             let unlocked_final = release_structs.lock().await;
-            Ok(warp::reply::with_header(json(&IndexBasicRequest {
+            Ok(reply::with_header(json(&IndexBasicRequest {
                 random_positions: random_vector,
                 available_categories: unlocked_final.clone(),
             }), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
-            Ok(warp::reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
+            Ok(reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
+        }
+    }
+}
+
+pub async fn get_item_by_id(id : String, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+    let mut unlocked = pool.lock().await;
+    match id.parse::<u16>() {
+        Ok(num) => {
+            match select_from_table_by_id(&mut unlocked, num) {
+                Ok(value) => {
+                    if value.len() == 0 {
+                        Ok(reply::with_header(json(&Message {reply : "No items found for this ID. Please try another one.".to_string()}), "Access-Control-Allow-Origin", "*"))
+                    }
+                    else {
+                        Ok(reply::with_header(json(&value), "Access-Control-Allow-Origin", "*"))
+                    }
+                }
+                Err(e) => {
+                    Ok(reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
+                }
+            }
+        }
+        Err(e) => {
+            Ok(reply::with_header(json(&Message {reply : e.to_string()}), "Access-Control-Allow-Origin", "*"))
         }
     }
 }
