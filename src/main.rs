@@ -37,7 +37,7 @@ async fn main() {
         .and_then(get_concrete_items_catalog)
         .with(cors_config::get());
 
-    let display_full_screen_item = warp::path!("concrete" / String)
+    let display_full_screen_item = warp::path!("concrete" / String) // Get an info about item by its ID to display it at the page
         .map(|id : String| {
             id.clone()
         })

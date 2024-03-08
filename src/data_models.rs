@@ -20,7 +20,10 @@ pub struct SqlStream { // A data for one object
     pub group_type : String,
     pub price : u32,
     pub image_path : String,
-    pub available_quantity : u32
+    pub available_quantity : u32,
+    pub width_mm : u32,
+    pub height_mm : u32,
+    pub weight_piece_grams : u32
 }
 #[derive(Debug, Serialize)]
 pub struct ToCompare {
@@ -34,4 +37,9 @@ pub struct Message {
 pub struct CategoryMainRequest {
     pub category : String,
     pub amount : u16
+}
+#[derive(Debug, Serialize, Clone)]
+pub struct ConcreteItemLayout { // An answer for concrete item to display at concrete.html
+    pub item : SqlStream,
+    pub recommendations : Vec<SqlStream>
 }
