@@ -142,3 +142,7 @@ pub async fn get_item_by_id(id : String, pool : Arc<Mutex<PooledConn>>) -> WebRe
         }
     }
 }
+
+pub async fn place_an_order_post_request<T : Clone>(order : T, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+
+}
