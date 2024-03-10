@@ -46,12 +46,12 @@ async fn main() {
         .and_then(get_item_by_id)
         .with(cors_config::get());
 
-    let place_an_order_post = warp::path!("submit" / "order") // Place an order in MySQL database using POST request and JSON body
-        .and(warp::post())
-        .and(warp::body::json())
-        .and(warp_injectors::with_pool(Arc::clone(&connection)))
-        .and_then()
-        .with(cors_config::get());
+    // let place_an_order_post = warp::path!("submit" / "order") // Place an order in MySQL database using POST request and JSON body
+    //     .and(warp::post())
+    //     .and(warp::body::json())
+    //     .and(warp_injectors::with_pool(Arc::clone(&connection)))
+    //     .and_then()
+    //     .with(cors_config::get());
 
     let refuse_connection = warp::any() // Refuse the connection if it doesn't match any filters
         .and(warp::method())
