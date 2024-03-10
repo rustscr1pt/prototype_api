@@ -7,8 +7,8 @@ use tokio::task::JoinHandle;
 use warp::{Rejection, Reply, reply};
 use warp::http::Method;
 use warp::reply::{json, Json};
-use crate::data_models::{CatalogMainRequest, CategoryMainRequest, ConcreteItemLayout, IndexBasicRequest, Message, SqlStream};
-use crate::mysql_model::{all_from_table_where_group_type, pick_3_random_recommendations, remove_repeating_elements_to_string, select_all_from_table, select_from_table_by_id, select_group_type_from_table};
+use crate::data_models::{CatalogMainRequest, CategoryMainRequest, ConcreteItemLayout, IndexBasicRequest, ItemSampleToDecode, Message, PlaceOrderBodyJSON, SqlStream};
+use crate::mysql_model::{all_from_table_where_group_type, insert_an_order, pick_3_random_recommendations, remove_repeating_elements_to_string, select_all_from_table, select_from_table_by_id, select_group_type_from_table};
 
 type WebResult<T> = Result<T, Rejection>;
 
@@ -17,10 +17,10 @@ pub async fn refuse_connection(_ : Method) -> WebResult<impl Reply> { // Refuse 
     Ok(reply::with_header(json(&Message { reply: "This request is forbidden, connection is dropped".to_string()}), "Access-Control-Allow-Origin", "*"))
 }
 
-fn reply_error<T>(error : T) -> WebResult<reply::WithHeader<Json>> // Reply with error.
+fn reply_with_message<T>(message: T) -> WebResult<reply::WithHeader<Json>> // Reply with error.
     where T : Display
 {
-    Ok(reply::with_header(json(&Message {reply : error.to_string()}), "Access-Control-Allow-Origin", "*"))
+    Ok(reply::with_header(json(&Message {reply : message.to_string()}), "Access-Control-Allow-Origin", "*"))
 }
 
 pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> { // Get all items from the tables catalog.
@@ -34,7 +34,7 @@ pub async fn get_all_items_catalog(pool : Arc<Mutex<PooledConn>>) -> WebResult<i
             }), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
-            reply_error(e)
+            reply_with_message(e)
         }
     }
 }
@@ -46,7 +46,7 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
             Ok(vec) => {
                 Ok(reply::with_header(json(&vec), "Access-Control-Allow-Origin", "*"))
             }
-            Err(e) => {reply_error(e)}
+            Err(e) => { reply_with_message(e)}
         }
     }
     else {
@@ -56,14 +56,14 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
                     if value == elements.compared {
                         match all_from_table_where_group_type(&mut unlocked, value) {
                             Ok(result) => {return Ok(reply::with_header(json(&result), "Access-Control-Allow-Origin", "*"))}
-                            Err(e) => {return reply_error(e)}
+                            Err(e) => {return reply_with_message(e)}
                         }
                     }
                 }
                 return Ok(reply::with_header(json(&Message{reply : format!("{} - No values found for your request", value)}), "Access-Control-Allow-Origin", "*"))
             }
             Err(e) => {
-                reply_error(e)
+                reply_with_message(e)
             }
         }
     }
@@ -111,7 +111,7 @@ pub async fn main_screen_getter(pool : Arc<Mutex<PooledConn>>) -> WebResult<impl
             }), "Access-Control-Allow-Origin", "*"))
         }
         Err(e) => {
-            reply_error(e)
+            reply_with_message(e)
         }
     }
 }
@@ -140,16 +140,20 @@ pub async fn get_item_by_id(id : String, pool : Arc<Mutex<PooledConn>>) -> WebRe
                     }
                 }
                 Err(e) => {
-                    reply_error(e)
+                    reply_with_message(e)
                 }
             }
         }
         Err(e) => {
-            reply_error(e)
+            reply_with_message(e)
         }
     }
 }
 
-// pub async fn place_an_order_post_request<T : Clone>(order : T, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
-//
-// }
+pub async fn place_an_order_post_request(order : PlaceOrderBodyJSON, pool : Arc<Mutex<PooledConn>>) -> WebResult<impl Reply> {
+    let mut unlocked = pool.lock().await;
+    match insert_an_order(order, &mut unlocked) {
+        Ok(_) => {reply_with_message("An order has been added.")}
+        Err(e) => {reply_with_message(e)}
+    }
+}

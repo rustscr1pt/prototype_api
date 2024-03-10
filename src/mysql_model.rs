@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 use std::fs;
 use itertools::Itertools;
-use mysql::{MySqlError, Pool, PooledConn};
+use mysql::{Error, params, Pool, PooledConn};
 use mysql::prelude::Queryable;
-use tokio::sync::MutexGuard;
-use crate::data_models::{SqlStream, ToCompare};
+use tokio::sync::{MutexGuard};
+use crate::data_models::{FormedToSendOrder, PlaceOrderBodyJSON, SqlStream, ToCompare, WeightOrPay};
 
 /// /Users/egorivanov/Desktop/mysql.txt
 /// r#"C:\Users\User\Desktop\mysql.txt"#
@@ -100,4 +100,42 @@ pub fn pick_3_random_recommendations(unlocked : &mut MutexGuard<PooledConn>, id 
                                   }
                               }
     )
+}
+
+fn get_full_price_or_weight<T : PartialEq + std::iter::Sum<f32>>(orient : &PlaceOrderBodyJSON, switcher : WeightOrPay) -> T {
+    match switcher {
+        WeightOrPay::Weight => {orient.contents.iter().map(|value| value.position.total_weight_grams).sum()}
+        WeightOrPay::TotalPay => {orient.contents.iter().map(|value| value.position.total_price).sum()}
+    }
+}
+
+pub fn insert_an_order(order_body : PlaceOrderBodyJSON, unlocked : &mut MutexGuard<PooledConn>) -> Result<(), Error> {
+    let total_to_pay = get_full_price_or_weight(&order_body, WeightOrPay::TotalPay);
+    let total_weight = get_full_price_or_weight(&order_body, WeightOrPay::Weight);
+
+    let mut to_send : Vec<FormedToSendOrder> = Vec::with_capacity(1);
+    to_send.push(FormedToSendOrder {
+        order_id: 0,
+        order_status: "ACTIVE".to_string(),
+        contents: order_body.contents,
+        total_to_pay: total_to_pay,
+        total_weight: total_weight,
+        phone: order_body.phone,
+        email: order_body.email,
+        delivery_type: order_body.delivery_type,
+        delivery_address: order_body.delivery_address,
+    });
+
+    return unlocked.exec_batch(r"INSERT INTO orders_data VALUES (:order_id, :order_status, :contents, :total_to_pay, :total_weight, :phone, :email, :delivery_type, :delivery_address, NOW(), NOW())",
+    to_send.iter().map(|obj| params! {
+        "order_id" => obj.order_id,
+        "order_status" => &obj.order_status,
+        "contents" => serde_json::to_string(&obj.contents).unwrap(),
+        "total_to_pay" => obj.total_to_pay,
+        "total_weight" => obj.total_weight,
+        "phone" => &obj.phone,
+        "email" => &obj.email,
+        "delivery_type" => &obj.delivery_type,
+        "delivery_address" => &obj.delivery_address
+    }))
 }
