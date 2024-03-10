@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 use warp::{Rejection, Reply, reply};
 use warp::http::Method;
 use warp::reply::{json, Json};
-use crate::data_models::{CatalogMainRequest, CategoryMainRequest, ConcreteItemLayout, IndexBasicRequest, ItemSampleToDecode, Message, PlaceOrderBodyJSON, SqlStream};
+use crate::data_models::{CatalogMainRequest, CategoryMainRequest, ConcreteItemLayout, IndexBasicRequest, Message, PlaceOrderBodyJSON, SqlStream};
 use crate::mysql_model::{all_from_table_where_group_type, insert_an_order, pick_3_random_recommendations, remove_repeating_elements_to_string, select_all_from_table, select_from_table_by_id, select_group_type_from_table};
 
 type WebResult<T> = Result<T, Rejection>;
@@ -60,7 +60,7 @@ pub async fn get_concrete_items_catalog(value : String, pool : Arc<Mutex<PooledC
                         }
                     }
                 }
-                return Ok(reply::with_header(json(&Message{reply : format!("{} - No values found for your request", value)}), "Access-Control-Allow-Origin", "*"))
+               reply_with_message("No values found for your request")
             }
             Err(e) => {
                 reply_with_message(e)
