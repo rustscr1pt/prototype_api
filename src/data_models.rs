@@ -45,16 +45,11 @@ pub struct ConcreteItemLayout { // An answer for concrete item to display at con
 }
 #[derive(Debug, Deserialize)]
 pub struct PlaceOrderBodyJSON {
-    pub contents : Vec<ItemSampleToDecode>,
+    pub contents : Vec<InnerItemDataDeserialize>,
     pub phone : String,
     pub email : String,
     pub delivery_type : String,
     pub delivery_address : String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ItemSampleToDecode {
-    pub position : InnerItemDataDeserialize
 }
 
 pub enum WeightOrPay {

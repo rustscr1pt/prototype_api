@@ -10,7 +10,7 @@ use crate::data_models::{FormedToSendOrder, PlaceOrderBodyJSON, SqlStream, ToCom
 /// r#"C:\Users\User\Desktop\mysql.txt"#
 
 pub fn establish_connection() -> PooledConn {
-    let pool = Pool::new(fs::read_to_string(r#"C:\Users\User\Desktop\mysql.txt"#).unwrap().trim()).expect("Couldn't connect to a base");
+    let pool = Pool::new(fs::read_to_string(r#"/Users/egorivanov/Desktop/mysql.txt"#).unwrap().trim()).expect("Couldn't connect to a base");
     println!("Connection with MySQL pool is established!");
     return pool.get_conn().unwrap();
 }
@@ -104,8 +104,8 @@ pub fn pick_3_random_recommendations(unlocked : &mut MutexGuard<PooledConn>, id 
 
 fn get_full_price_or_weight<T : PartialEq + std::iter::Sum<f32>>(orient : &PlaceOrderBodyJSON, switcher : WeightOrPay) -> T {
     match switcher {
-        WeightOrPay::Weight => {orient.contents.iter().map(|value| value.position.total_weight_grams).sum()}
-        WeightOrPay::TotalPay => {orient.contents.iter().map(|value| value.position.total_price).sum()}
+        WeightOrPay::Weight => {orient.contents.iter().map(|value| value.total_weight_grams).sum()}
+        WeightOrPay::TotalPay => {orient.contents.iter().map(|value| value.total_price).sum()}
     }
 }
 
